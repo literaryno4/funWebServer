@@ -1,22 +1,20 @@
-#include <sys/socket.h>
-#include <netdb.h>
-#include <sys/stat.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <sys/sendfile.h>
-#include <pthread.h>
-#include <sys/mman.h>
-#include "../include/tlpi_hdr.h"
 #include "../include/read_line.h"
+#include "../include/tlpi_hdr.h"
+#include <fcntl.h>
+#include <netdb.h>
+#include <pthread.h>
+#include <signal.h>
+#include <sys/mman.h>
+#include <sys/sendfile.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 
 #define PORT_NUM "50004"
 #define BACKLOG 50
 #define BUF_SIZE 1000
 #define MAX_FILE_SIZE 100000
 
-void 
-errPage(int cfd, char *cause, char *errnum, 
-		 char *shortmsg, char *longmsg) 
+void errPage(int cfd, char* cause, char* errnum, char* shortmsg, char* longmsg)
 {
     char buf[BUF_SIZE];
 
@@ -29,7 +27,10 @@ errPage(int cfd, char *cause, char *errnum,
     /* Print the HTTP response body */
     sprintf(buf, "<html><title>Tiny Error</title>");
     write(cfd, buf, strlen(buf));
-    sprintf(buf, "<body bgcolor=""ffffff"">\r\n");
+    sprintf(buf,
+            "<body bgcolor="
+            "ffffff"
+            ">\r\n");
     write(cfd, buf, strlen(buf));
     sprintf(buf, "%s: %s\r\n", errnum, shortmsg);
     write(cfd, buf, strlen(buf));
@@ -39,21 +40,19 @@ errPage(int cfd, char *cause, char *errnum,
     write(cfd, buf, strlen(buf));
 }
 
-void
-readothhrd(int cfd)
+void readothhrd(int cfd)
 {
     int numread;
     char buf[BUF_SIZE];
     readLine(cfd, buf, BUF_SIZE);
-    while(strcmp(buf, "\r\n")) {
+    while (strcmp(buf, "\r\n")) {
         readLine(cfd, buf, BUF_SIZE);
         printf("%s", buf);
     }
     return;
 }
 
-void 
-getFiletype(char *filename, char* filetype)
+void getFiletype(char* filename, char* filetype)
 {
     if (strstr(filename, ".html")) {
         strcpy(filetype, "text/html");
@@ -63,21 +62,24 @@ getFiletype(char *filename, char* filetype)
         strcpy(filetype, "text/png");
     } else if (strstr(filename, ".jpg")) {
         strcpy(filetype, "text/jpeg");
+    } else if (strstr(filename, ".css")) {
+        strcpy(filetype, "text/css");
+    } else if (strstr(filename, ".js")) {
+        strcpy(filetype, "text/js");
     } else {
         strcpy(filetype, "text/plain");
     }
 }
 
-int
-parseUrl(char *url, char *filename, char* cgiargs)
+int parseUrl(char* url, char* filename, char* cgiargs)
 {
-    char *ptr;
-    
+    char* ptr;
+
     if (!strstr(url, "cgi-bin")) {
         strcpy(cgiargs, "");
         strcpy(filename, ".");
         strcat(filename, url);
-        if (url[strlen(url)-1] == '/') {
+        if (url[strlen(url) - 1] == '/') {
             strcat(filename, "index.html");
         }
 
@@ -97,8 +99,7 @@ parseUrl(char *url, char *filename, char* cgiargs)
     }
 }
 
-int
-staticRequest(int cfd, char *filename, int filesize)
+int staticRequest(int cfd, char* filename, int filesize)
 {
     int n, fd;
     char buf[BUF_SIZE], filetype[BUF_SIZE];
@@ -118,7 +119,8 @@ staticRequest(int cfd, char *filename, int filesize)
         return -1;
     }
 
-    while((n = sendfile(cfd, fd, NULL, filesize)) > 0);
+    while ((n = sendfile(cfd, fd, NULL, filesize)) > 0)
+        ;
     if (n == -1) {
         close(fd);
         return -1;
@@ -137,22 +139,20 @@ staticRequest(int cfd, char *filename, int filesize)
     return 0;
 }
 
-int
-dynamicRequest(int cfd, char *filename, char *cgiargs)
+int dynamicRequest(int cfd, char* filename, char* cgiargs)
 {
     dup2(cfd, STDOUT_FILENO);
     execve(filename, NULL, NULL);
     return 0;
 }
 
-int
-serveWeb(int cfd)
+int serveWeb(int cfd)
 {
     int numread, isStatic;
     struct stat sbuf;
-    char buf[BUF_SIZE], method[BUF_SIZE], url[BUF_SIZE], 
-            version[BUF_SIZE], filename[BUF_SIZE], cgiargs[BUF_SIZE];
-    
+    char buf[BUF_SIZE], method[BUF_SIZE], url[BUF_SIZE], version[BUF_SIZE],
+        filename[BUF_SIZE], cgiargs[BUF_SIZE];
+
     if ((numread = readLine(cfd, buf, BUF_SIZE)) == -1) {
         return -1;
     }
@@ -160,24 +160,31 @@ serveWeb(int cfd)
     readothhrd(cfd);
 
     if (strcmp(method, "GET")) {
-        errPage(cfd, method, "501", "Not Implemented",
-                    "funserver does not implement this method");
+        errPage(cfd,
+                method,
+                "501",
+                "Not Implemented",
+                "funserver does not implement this method");
 
         return -1;
     }
 
     isStatic = parseUrl(url, filename, cgiargs);
 
+    printf("url: %s\n", filename);
+
     if (stat(filename, &sbuf) == -1) {
-        errPage(cfd, filename, "404", "Not found",
-            "funserver couldn't find this file");
+        errPage(cfd,
+                filename,
+                "404",
+                "Not found",
+                "funserver couldn't find this file");
         return -1;
     }
     if (isStatic) {
         staticRequest(cfd, filename, sbuf.st_size);
     } else {
         dynamicRequest(cfd, filename, cgiargs);
-
     }
 
     printf("received GET req\n");
@@ -185,8 +192,7 @@ serveWeb(int cfd)
     return 0;
 }
 
-int
-main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     int lfd, cfd, optval, s;
     struct sockaddr_storage claddr;
@@ -196,7 +202,7 @@ main(int argc, char *argv[])
     struct sigaction sa;
 
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags   = SA_RESTART;
     sa.sa_handler = SIG_IGN;
     if (sigaction(SIGCHLD, &sa, NULL) == -1) {
         errExit("sigaction");
@@ -204,11 +210,11 @@ main(int argc, char *argv[])
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_canonname = NULL;
-    hints.ai_next = NULL;
-    hints.ai_addr = NULL;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
+    hints.ai_next      = NULL;
+    hints.ai_addr      = NULL;
+    hints.ai_socktype  = SOCK_STREAM;
+    hints.ai_family    = AF_UNSPEC;
+    hints.ai_flags     = AI_PASSIVE | AI_NUMERICSERV;
 
     if (getaddrinfo(NULL, PORT_NUM, &hints, &result) == -1) {
         errExit("getaddrinfo");
@@ -221,8 +227,8 @@ main(int argc, char *argv[])
             continue;
         }
 
-        if (setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) 
-               == -1) {
+        if (setsockopt(
+                lfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
             errExit("setsockopt");
         }
 
@@ -243,13 +249,13 @@ main(int argc, char *argv[])
     freeaddrinfo(result);
 
     for (;;) {
-        cfd = accept(lfd, (struct sockaddr *) &claddr, &addrlen);
+        cfd = accept(lfd, (struct sockaddr*)&claddr, &addrlen);
         if (cfd == -1) {
             continue;
         }
 
         printf("connected\n");
-        
+
         switch (fork()) {
         case -1:
             printf("error fork");
@@ -259,9 +265,7 @@ main(int argc, char *argv[])
             close(lfd);
             serveWeb(cfd);
             _exit(EXIT_SUCCESS);
-        default:
-            close(cfd);
-            break;
+        default: close(cfd); break;
         }
     }
 }

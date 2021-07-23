@@ -1,18 +1,20 @@
-#include <sys/socket.h>
-#include <netdb.h>
-#include <sys/stat.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <sys/sendfile.h>
-#include <pthread.h>
-#include <sys/mman.h>
-#include <sys/epoll.h>
-#include "../include/tlpi_hdr.h"
+#include "../include/inet_sockets.h"
 #include "../include/read_line.h"
 #include "../include/sbuf.h"
-#include "../include/inet_sockets.h"
+#include "../include/tlpi_hdr.h"
+#include <fcntl.h>
+#include <netdb.h>
+#include <pthread.h>
+#include <signal.h>
+#include <sys/epoll.h>
+#include <sys/mman.h>
+#include <sys/sendfile.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <syslog.h>
 
 #define PORT_NUM "50004"
+#define WORKDIR "/home/chao/projects/funserver/funserver"
 #define BACKLOG 50
 #define BUF_SIZE 1000
 #define MAX_FILE_SIZE 100000
@@ -23,28 +25,28 @@
 
 sbuf_t sp;
 
-struct users {
-    char *filename;
+struct users
+{
+    char* filename;
     int read_buf_len;
     char u_read_buf[READ_BUF_SIZE];
 };
 
 struct users usrs[MAX_FD];
 
-void errPage(int cfd, char *cause, char *errnum, 
-		 char *shortmsg, char *longmsg);
+void errPage(int cfd, char* cause, char* errnum, char* shortmsg, char* longmsg);
 
 void readothhrd(int cfd);
 
-void getFiletype(char *filename, char* filetype);
+void getFiletype(char* filename, char* filetype);
 
-int parseUrl(char *url, char *filename, char* cgiargs);
+int parseUrl(char* url, char* filename, char* cgiargs);
 
-int static Request(int cfd, char *filename, int filesize);
+int static Request(int cfd, char* filename, int filesize);
 
-int dynamicRequest(int cfd, char *filename, char *cgiargs);
+int dynamicRequest(int cfd, char* filename, char* cgiargs);
 
-void modfd( int epollfd, int fd, int ev );
+void modfd(int epollfd, int fd, int ev);
 
 int setnonblocking(int fd);
 
@@ -52,13 +54,13 @@ int serveWebRead(int cfd);
 
 int serveWebWrite(int cfd);
 
-static void *worker(struct users *usrs);
+static void* worker(struct users* usrs);
 
 int
-main(int argc, char *argv[])
+main(int argc, char* argv[])
 {
     int lfd, cfd, optval, s;
-    int *pfd;
+    int* pfd;
     pthread_t t1;
     struct sockaddr_storage claddr;
     socklen_t addrlen;
@@ -66,13 +68,18 @@ main(int argc, char *argv[])
     struct addrinfo *result, *rp;
     struct sigaction sa;
 
+    if (daemon(0, 0) == 1) {
+        errExit("daemon");
+    }
+
     sbuf_init(&sp, 16);
 
     // create thread pool
     for (int i = 0; i < MAX_THREAD_NUMBER; i++) {
         s = pthread_create(&t1, NULL, worker, usrs);
         if (s != 0) {
-            err_exit("pthread_create");
+            syslog(LOG_ERR, "pthread_create error: %s", strerror(errno));
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -81,52 +88,53 @@ main(int argc, char *argv[])
     }
 
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags   = SA_RESTART;
     sa.sa_handler = SIG_IGN;
     if (sigaction(SIGPIPE, &sa, NULL) == -1) {
-        errExit("sigaction");
+        syslog(LOG_ERR, "sigaciton error: %s", strerror(errno));
+        exit(EXIT_FAILURE);
     }
 
     lfd = inetListen(PORT_NUM, BACKLOG, addrlen);
 
     for (;;) {
-        cfd = accept(lfd, (struct sockaddr *) &claddr, &addrlen);
+        cfd = accept(lfd, (struct sockaddr*)&claddr, &addrlen);
         if (cfd == -1) {
             continue;
         }
-        printf("connected\n");
+
+        syslog(LOG_INFO, "socket connected");
 
         sbuf_insert(&sp, cfd);
     }
 }
 
-static void *
-worker(struct users *usrs)
+static void*
+worker(struct users* usrs)
 {
     pthread_detach(pthread_self());
-    printf("detached\n");
 
     int cfd, epollFd, numEvents, i;
     struct epoll_event ev;
     struct epoll_event evlist[MAX_EVENTS];
     epollFd = epoll_create(5);
     if (epollFd == -1) {
-        errExit("epoll_create");
+        syslog(LOG_ERR, "epoll_create error: %s", strerror(errno));
+        exit(EXIT_FAILURE);
     }
 
     for (;;) {
-        cfd = sbuf_tryremove(&sp); //try sem_wait
+        cfd = sbuf_tryremove(&sp);   // try sem_wait
         if (cfd >= 0) {
             ev.data.fd = cfd;
-            ev.events = EPOLLIN | EPOLLOUT | EPOLLET |EPOLLERR;
+            ev.events  = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLERR;
             epoll_ctl(epollFd, EPOLL_CTL_ADD, cfd, &ev);
             setnonblocking(cfd);
         }
 
         numEvents = epoll_wait(epollFd, evlist, MAX_EVENTS, 0);
-        
+
         for (i = 0; i < numEvents; i++) {
-            printf("do work\n");
             if (evlist[i].events & EPOLLERR) {
                 close(evlist[i].data.fd);
                 continue;
@@ -166,20 +174,23 @@ serveWebWrite(int cfd)
 {
     int isStatic;
     struct stat statbuf;
-    char method[BUF_SIZE], url[BUF_SIZE], 
-            version[BUF_SIZE], filename[BUF_SIZE], cgiargs[BUF_SIZE];
+    char method[BUF_SIZE], url[BUF_SIZE], version[BUF_SIZE], filename[BUF_SIZE],
+        cgiargs[BUF_SIZE];
 
     if (strlen(usrs[cfd].u_read_buf) == 0) {
         close(cfd);
         return -1;
     }
-    printf("%s\n", usrs[cfd].u_read_buf);
+    syslog(LOG_INFO, "%s\n", usrs[cfd].u_read_buf);
     sscanf(usrs[cfd].u_read_buf, "%s %s %s", method, url, version);
     memset(usrs[cfd].u_read_buf, '\0', READ_BUF_SIZE);
 
     if (strcmp(method, "GET")) {
-        errPage(cfd, method, "501", "Not Implemented",
-                    "funserver does not implement this method");
+        errPage(cfd,
+                method,
+                "501",
+                "Not Implemented",
+                "funserver does not implement this method");
         close(cfd);
 
         return -1;
@@ -188,8 +199,11 @@ serveWebWrite(int cfd)
     isStatic = parseUrl(url, filename, cgiargs);
 
     if (stat(filename, &statbuf) == -1) {
-        errPage(cfd, filename, "404", "Not found",
-            "funserver couldn't find this file");
+        errPage(cfd,
+                filename,
+                "404",
+                "Not found",
+                "funserver couldn't find this file");
         close(cfd);
         return -1;
     }
@@ -199,13 +213,10 @@ serveWebWrite(int cfd)
         dynamicRequest(cfd, filename, cgiargs);
     }
 
-    printf("received GET req\n\n\n");
-
     return 0;
-
 }
 
-int 
+int
 setnonblocking(int fd)
 {
     int old_option = fcntl(fd, F_GETFL);
@@ -214,18 +225,17 @@ setnonblocking(int fd)
     return old_option;
 }
 
-void 
-modfd( int epollfd, int fd, int ev )
+void
+modfd(int epollfd, int fd, int ev)
 {
     struct epoll_event event;
     event.data.fd = fd;
-    event.events = ev | EPOLLET | EPOLLERR;
-    epoll_ctl( epollfd, EPOLL_CTL_MOD, fd, &event );
+    event.events  = ev | EPOLLET | EPOLLERR;
+    epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
 }
 
-void 
-errPage(int cfd, char *cause, char *errnum, 
-		 char *shortmsg, char *longmsg) 
+void
+errPage(int cfd, char* cause, char* errnum, char* shortmsg, char* longmsg)
 {
     char buf[BUF_SIZE];
 
@@ -238,7 +248,10 @@ errPage(int cfd, char *cause, char *errnum,
     /* Print the HTTP response body */
     sprintf(buf, "<html><title>Tiny Error</title>");
     write(cfd, buf, strlen(buf));
-    sprintf(buf, "<body bgcolor=""ffffff"">\r\n");
+    sprintf(buf,
+            "<body bgcolor="
+            "ffffff"
+            ">\r\n");
     write(cfd, buf, strlen(buf));
     sprintf(buf, "%s: %s\r\n", errnum, shortmsg);
     write(cfd, buf, strlen(buf));
@@ -253,15 +266,15 @@ readothhrd(int cfd)
 {
     char buf[BUF_SIZE];
     readLine(cfd, buf, BUF_SIZE);
-    while(strcmp(buf, "\r\n")) {
+    while (strcmp(buf, "\r\n")) {
         readLine(cfd, buf, BUF_SIZE);
-        printf("%s", buf);
+        syslog(LOG_INFO, "%s", buf);
     }
     return;
 }
 
-void 
-getFiletype(char *filename, char* filetype)
+void
+getFiletype(char* filename, char* filetype)
 {
     if (strstr(filename, ".html")) {
         strcpy(filetype, "text/html");
@@ -271,21 +284,25 @@ getFiletype(char *filename, char* filetype)
         strcpy(filetype, "text/png");
     } else if (strstr(filename, ".jpg")) {
         strcpy(filetype, "text/jpeg");
+    } else if (strstr(filename, ".css")) {
+        strcpy(filetype, "text/css");
+    } else if (strstr(filename, ".js")) {
+        strcpy(filetype, "text/js");
     } else {
         strcpy(filetype, "text/plain");
     }
 }
 
 int
-parseUrl(char *url, char *filename, char* cgiargs)
+parseUrl(char* url, char* filename, char* cgiargs)
 {
-    char *ptr;
-    
+    char* ptr;
+
     if (!strstr(url, "cgi-bin")) {
         strcpy(cgiargs, "");
-        strcpy(filename, ".");
+        strcpy(filename, WORKDIR);
         strcat(filename, url);
-        if (url[strlen(url)-1] == '/') {
+        if (url[strlen(url) - 1] == '/') {
             strcat(filename, "index.html");
         }
 
@@ -306,7 +323,7 @@ parseUrl(char *url, char *filename, char* cgiargs)
 }
 
 int
-staticRequest(int cfd, char *filename, int filesize)
+staticRequest(int cfd, char* filename, int filesize)
 {
     int n, fd;
     char buf[BUF_SIZE], filetype[BUF_SIZE];
@@ -326,7 +343,8 @@ staticRequest(int cfd, char *filename, int filesize)
         return -1;
     }
 
-    while((n = sendfile(cfd, fd, NULL, filesize)) > 0);
+    while ((n = sendfile(cfd, fd, NULL, filesize)) > 0)
+        ;
     if (n == -1) {
         close(fd);
         return -1;
@@ -340,13 +358,12 @@ staticRequest(int cfd, char *filename, int filesize)
     //     return -1;
     // }
     // munmap(fdp, filesize);
-    printf("sent file\n");
 
     return 0;
 }
 
 int
-dynamicRequest(int cfd, char *filename, char *cgiargs)
+dynamicRequest(int cfd, char* filename, char* cgiargs)
 {
     dup2(cfd, STDOUT_FILENO);
     execve(filename, NULL, NULL);

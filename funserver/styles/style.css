@@ -1,5 +1,48 @@
-p, li, h1 {
-    color: blue;
-    width: 500px;
-    border: 1px solid black;
+h1 {
+  font-family: "Palatino Linotype", "Book Antiqua", Palatino, Helvetica, STKaiti, SimSun, serif;
+  margin-bottom: 60px;
+  margin-bottom: 40px;
+  padding: 5px;
+  border-bottom: 2px LightGrey solid;
+  width: 98%;
+  line-height: 150%;
+  color: #666666;
+  /* font-size: 30px;
+  text-align: center;
+  text-shadow: 3px 3px 1px black; */
+}
+
+p, li, a {
+  color: #666666;
+  width: 500px;
+  font-size: 16px;
+  /* line-height 后而可以跟不同的参数，如果是数字，就是当前字体大小乘上数字 */
+  line-height: 2;
+  letter-spacing: 1px;
+}
+
+img {
+    display: block;
+    box-shadow: 0 0 10px #555;
+    border-radius: 6px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    -webkit-box-shadow: 0 0 10px #555;
+}
+
+body {
+  width: 600px;
+  margin: 0 auto;
+  padding: 0 20px 20px 20px;
+  /* border: 5px solid black; */
+}
+
+html {
+  /* px 表示 “像素（pixels）”: 基础字号为 10 像素 */
+  font-size: 10px;
+  /* Google fonts 输出的 CSS */
+  font-family: 'Open Sans', sans-serif;
+  background-color: #fdf6e3;
 }
