@@ -1,7 +1,3 @@
-#include "../include/inet_sockets.h"
-#include "../include/read_line.h"
-#include "../include/sbuf.h"
-#include "../include/tlpi_hdr.h"
 #include <fcntl.h>
 #include <netdb.h>
 #include <pthread.h>
@@ -13,8 +9,14 @@
 #include <sys/stat.h>
 #include <syslog.h>
 
+#include "../include/inet_sockets.h"
+#include "../include/read_line.h"
+#include "../include/sbuf.h"
+#include "../include/tlpi_hdr.h"
+
 #define PORT_NUM "50004"
-#define WORKDIR "/home/chao/projects/funserver/funserver"
+// #define WORKDIR "/home/ubuntu/funserver/funserver"
+#define WORKDIR "."
 #define BACKLOG 50
 #define BUF_SIZE 1000
 #define MAX_FILE_SIZE 100000
@@ -25,8 +27,7 @@
 
 sbuf_t sp;
 
-struct users
-{
+struct users {
     char* filename;
     int read_buf_len;
     char u_read_buf[READ_BUF_SIZE];
@@ -56,9 +57,7 @@ int serveWebWrite(int cfd);
 
 static void* worker();
 
-int
-main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     int lfd, cfd, s;
     pthread_t t1;
     struct sockaddr_storage claddr;
@@ -85,7 +84,7 @@ main(int argc, char* argv[])
     }
 
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags   = SA_RESTART;
+    sa.sa_flags = SA_RESTART;
     sa.sa_handler = SIG_IGN;
     if (sigaction(SIGPIPE, &sa, NULL) == -1) {
         syslog(LOG_ERR, "sigaciton error: %s", strerror(errno));
@@ -106,9 +105,7 @@ main(int argc, char* argv[])
     }
 }
 
-static void*
-worker()
-{
+static void* worker() {
     pthread_detach(pthread_self());
 
     int cfd, epollFd, numEvents, i;
@@ -121,10 +118,10 @@ worker()
     }
 
     for (;;) {
-        cfd = sbuf_tryremove(&sp);   // try sem_wait
+        cfd = sbuf_tryremove(&sp);  // try sem_wait
         if (cfd >= 0) {
             ev.data.fd = cfd;
-            ev.events  = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLERR;
+            ev.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLERR;
             epoll_ctl(epollFd, EPOLL_CTL_ADD, cfd, &ev);
             setnonblocking(cfd);
         }
@@ -149,9 +146,7 @@ worker()
     }
 }
 
-int
-serveWebRead(int cfd)
-{
+int serveWebRead(int cfd) {
     int numread;
 
     if ((numread = readLine(cfd, usrs[cfd].u_read_buf, READ_BUF_SIZE)) == -1) {
@@ -166,9 +161,7 @@ serveWebRead(int cfd)
     return 0;
 }
 
-int
-serveWebWrite(int cfd)
-{
+int serveWebWrite(int cfd) {
     int isStatic;
     struct stat statbuf;
     char method[BUF_SIZE], url[BUF_SIZE], version[BUF_SIZE], filename[BUF_SIZE],
@@ -183,10 +176,7 @@ serveWebWrite(int cfd)
     memset(usrs[cfd].u_read_buf, '\0', READ_BUF_SIZE);
 
     if (strcmp(method, "GET")) {
-        errPage(cfd,
-                method,
-                "501",
-                "Not Implemented",
+        errPage(cfd, method, "501", "Not Implemented",
                 "funserver does not implement this method");
         close(cfd);
 
@@ -196,14 +186,13 @@ serveWebWrite(int cfd)
     isStatic = parseUrl(url, filename, cgiargs);
 
     if (stat(filename, &statbuf) == -1) {
-        errPage(cfd,
-                filename,
-                "404",
-                "Not found",
+        syslog(LOG_INFO, "Not found file: %s", filename);
+        errPage(cfd, filename, "404", "Not found",
                 "funserver couldn't find this file");
         close(cfd);
         return -1;
     }
+    syslog(LOG_INFO, "filename: %s", filename);
     if (isStatic) {
         staticRequest(cfd, filename, statbuf.st_size);
     } else {
@@ -213,27 +202,22 @@ serveWebWrite(int cfd)
     return 0;
 }
 
-int
-setnonblocking(int fd)
-{
+int setnonblocking(int fd) {
     int old_option = fcntl(fd, F_GETFL);
     int new_option = old_option | O_NONBLOCK;
     fcntl(fd, F_SETFL, new_option);
     return old_option;
 }
 
-void
-modfd(int epollfd, int fd, int ev)
-{
+void modfd(int epollfd, int fd, int ev) {
     struct epoll_event event;
     event.data.fd = fd;
-    event.events  = ev | EPOLLET | EPOLLERR;
+    event.events = ev | EPOLLET | EPOLLERR;
     epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
 }
 
-void
-errPage(int cfd, char* cause, char* errnum, char* shortmsg, char* longmsg)
-{
+void errPage(int cfd, char* cause, char* errnum, char* shortmsg,
+             char* longmsg) {
     char buf[BUF_SIZE];
 
     /* Print the HTTP response headers */
@@ -258,9 +242,7 @@ errPage(int cfd, char* cause, char* errnum, char* shortmsg, char* longmsg)
     write(cfd, buf, strlen(buf));
 }
 
-void
-readothhrd(int cfd)
-{
+void readothhrd(int cfd) {
     char buf[BUF_SIZE];
     readLine(cfd, buf, BUF_SIZE);
     while (strcmp(buf, "\r\n")) {
@@ -270,9 +252,7 @@ readothhrd(int cfd)
     return;
 }
 
-void
-getFiletype(char* filename, char* filetype)
-{
+void getFiletype(char* filename, char* filetype) {
     if (strstr(filename, ".html")) {
         strcpy(filetype, "text/html");
     } else if (strstr(filename, ".gif")) {
@@ -290,9 +270,7 @@ getFiletype(char* filename, char* filetype)
     }
 }
 
-int
-parseUrl(char* url, char* filename, char* cgiargs)
-{
+int parseUrl(char* url, char* filename, char* cgiargs) {
     char* ptr;
 
     if (!strstr(url, "cgi-bin")) {
@@ -319,9 +297,7 @@ parseUrl(char* url, char* filename, char* cgiargs)
     }
 }
 
-int
-staticRequest(int cfd, char* filename, int filesize)
-{
+int staticRequest(int cfd, char* filename, int filesize) {
     int n, fd;
     char buf[BUF_SIZE], filetype[BUF_SIZE];
     getFiletype(filename, filetype);
@@ -359,9 +335,7 @@ staticRequest(int cfd, char* filename, int filesize)
     return 0;
 }
 
-int
-dynamicRequest(int cfd, char* filename, char* cgiargs)
-{
+int dynamicRequest(int cfd, char* filename, char* cgiargs) {
     dup2(cfd, STDOUT_FILENO);
     execve(filename, NULL, NULL);
     return 0;
