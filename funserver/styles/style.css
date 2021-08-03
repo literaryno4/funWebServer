@@ -23,6 +23,7 @@ p, li, a {
 
 img {
     display: block;
+    max-width: 100%;
     box-shadow: 0 0 10px #555;
     border-radius: 6px;
     margin-left: auto;

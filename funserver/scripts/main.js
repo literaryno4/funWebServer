@@ -7,22 +7,18 @@ let myImage = document.querySelector('img');
 
 myImage.onclick = function() {
     let mySrc = myImage.getAttribute('src');
-    if(mySrc === 'images/godzilla.jpg') {
-      myImage.setAttribute('src', 'images/google.gif');
-    } else {
-      myImage.setAttribute('src', 'images/godzilla.jpg');
-    }
+    myImage.setAttribute('src', 'images/IMG_' + Math.floor(Math.random()*8) + ".jpeg");
 };
 
 let myButton = document.querySelector('button');
 
 function setUserName() {
-  let myName = prompt('请输入你的名字。');
+  let myName = prompt('Input your name: ');
   if (!myName || myName == null) {
     setUserName()
   } else {
     localStorage.setItem('name', myName);
-    myHeading.textContent = 'Mozilla 酷毙了，' + myName;
+    myHeading.textContent = 'Welcome，' + myName;
   }
 }
 
@@ -30,7 +26,7 @@ if(!localStorage.getItem('name')) {
   setUserName();
 } else {
   let storedName = localStorage.getItem('name');
-  myHeading.textContent = 'Mozilla 酷毙了，' + storedName;
+  myHeading.textContent = 'Welcome，' + storedName;
 }
 
 myButton.onclick = function() {

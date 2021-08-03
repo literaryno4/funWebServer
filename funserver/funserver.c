@@ -14,7 +14,8 @@
 #define BUF_SIZE 1000
 #define MAX_FILE_SIZE 100000
 
-void errPage(int cfd, char* cause, char* errnum, char* shortmsg, char* longmsg)
+void
+errPage(int cfd, char* cause, char* errnum, char* shortmsg, char* longmsg)
 {
     char buf[BUF_SIZE];
 
@@ -40,7 +41,8 @@ void errPage(int cfd, char* cause, char* errnum, char* shortmsg, char* longmsg)
     write(cfd, buf, strlen(buf));
 }
 
-void readothhrd(int cfd)
+void
+readothhrd(int cfd)
 {
     int numread;
     char buf[BUF_SIZE];
@@ -52,7 +54,8 @@ void readothhrd(int cfd)
     return;
 }
 
-void getFiletype(char* filename, char* filetype)
+void
+getFiletype(char* filename, char* filetype)
 {
     if (strstr(filename, ".html")) {
         strcpy(filetype, "text/html");
@@ -71,7 +74,8 @@ void getFiletype(char* filename, char* filetype)
     }
 }
 
-int parseUrl(char* url, char* filename, char* cgiargs)
+int
+parseUrl(char* url, char* filename, char* cgiargs)
 {
     char* ptr;
 
@@ -99,7 +103,8 @@ int parseUrl(char* url, char* filename, char* cgiargs)
     }
 }
 
-int staticRequest(int cfd, char* filename, int filesize)
+int
+staticRequest(int cfd, char* filename, int filesize)
 {
     int n, fd;
     char buf[BUF_SIZE], filetype[BUF_SIZE];
@@ -139,19 +144,21 @@ int staticRequest(int cfd, char* filename, int filesize)
     return 0;
 }
 
-int dynamicRequest(int cfd, char* filename, char* cgiargs)
+int
+dynamicRequest(int cfd, char* filename, char* cgiargs)
 {
     dup2(cfd, STDOUT_FILENO);
     execve(filename, NULL, NULL);
     return 0;
 }
 
-int serveWeb(int cfd)
+int
+serveWeb(int cfd)
 {
     int numread, isStatic;
     struct stat sbuf;
-    char buf[BUF_SIZE], method[BUF_SIZE], url[BUF_SIZE], version[BUF_SIZE],
-        filename[BUF_SIZE], cgiargs[BUF_SIZE];
+    char buf[BUF_SIZE], method[BUF_SIZE], url[BUF_SIZE], version[BUF_SIZE], filename[BUF_SIZE],
+        cgiargs[BUF_SIZE];
 
     if ((numread = readLine(cfd, buf, BUF_SIZE)) == -1) {
         return -1;
@@ -160,11 +167,7 @@ int serveWeb(int cfd)
     readothhrd(cfd);
 
     if (strcmp(method, "GET")) {
-        errPage(cfd,
-                method,
-                "501",
-                "Not Implemented",
-                "funserver does not implement this method");
+        errPage(cfd, method, "501", "Not Implemented", "funserver does not implement this method");
 
         return -1;
     }
@@ -174,11 +177,7 @@ int serveWeb(int cfd)
     printf("url: %s\n", filename);
 
     if (stat(filename, &sbuf) == -1) {
-        errPage(cfd,
-                filename,
-                "404",
-                "Not found",
-                "funserver couldn't find this file");
+        errPage(cfd, filename, "404", "Not found", "funserver couldn't find this file");
         return -1;
     }
     if (isStatic) {
@@ -192,7 +191,8 @@ int serveWeb(int cfd)
     return 0;
 }
 
-int main(int argc, char* argv[])
+int
+main(int argc, char* argv[])
 {
     int lfd, cfd, optval, s;
     struct sockaddr_storage claddr;
@@ -227,8 +227,7 @@ int main(int argc, char* argv[])
             continue;
         }
 
-        if (setsockopt(
-                lfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
+        if (setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
             errExit("setsockopt");
         }
 

@@ -14,7 +14,7 @@
 #include <syslog.h>
 
 #define PORT_NUM "50004"
-#define WORKDIR "/home/chao/projects/funserver/funserver"
+#define WORKDIR "."
 #define BACKLOG 50
 #define BUF_SIZE 1000
 #define MAX_FILE_SIZE 100000
@@ -42,7 +42,7 @@ void getFiletype(char* filename, char* filetype);
 
 int parseUrl(char* url, char* filename, char* cgiargs);
 
-int static Request(int cfd, char* filename, int filesize);
+int staticRequest(int cfd, char* filename, int filesize);
 
 int dynamicRequest(int cfd, char* filename, char* cgiargs);
 
@@ -59,13 +59,10 @@ static void* worker(struct users* usrs);
 int
 main(int argc, char* argv[])
 {
-    int lfd, cfd, optval, s;
-    int* pfd;
+    int lfd, cfd, s;
     pthread_t t1;
     struct sockaddr_storage claddr;
     socklen_t addrlen;
-    struct addrinfo hints;
-    struct addrinfo *result, *rp;
     struct sigaction sa;
 
     if (daemon(0, 0) == 1) {
@@ -300,7 +297,7 @@ parseUrl(char* url, char* filename, char* cgiargs)
 
     if (!strstr(url, "cgi-bin")) {
         strcpy(cgiargs, "");
-        strcpy(filename, WORKDIR);
+        strcpy(filename, ".");
         strcat(filename, url);
         if (url[strlen(url) - 1] == '/') {
             strcat(filename, "index.html");
