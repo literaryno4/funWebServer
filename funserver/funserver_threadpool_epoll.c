@@ -14,7 +14,7 @@
 #include <syslog.h>
 
 #define PORT_NUM "50004"
-#define WORKDIR "/home/chao/projects/funserver/funserver"
+#define WORKDIR "."
 #define BACKLOG 50
 #define BUF_SIZE 1000
 #define MAX_FILE_SIZE 100000
@@ -42,7 +42,7 @@ void getFiletype(char* filename, char* filetype);
 
 int parseUrl(char* url, char* filename, char* cgiargs);
 
-int static Request(int cfd, char* filename, int filesize);
+int staticRequest(int cfd, char* filename, int filesize);
 
 int dynamicRequest(int cfd, char* filename, char* cgiargs);
 
