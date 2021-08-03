@@ -14,11 +14,11 @@
 #include <syslog.h>
 
 #define PORT_NUM "50004"
-#define WORKDIR "."
+#define WORKDIR "/home/chao/projects/funserver/funserver"
 #define BACKLOG 50
 #define BUF_SIZE 1000
 #define MAX_FILE_SIZE 100000
-#define MAX_THREAD_NUMBER 4
+#define MAX_THREAD_NUMBER 2
 #define READ_BUF_SIZE 2048
 #define MAX_FD 65536
 #define MAX_EVENTS 1000
@@ -54,7 +54,7 @@ int serveWebRead(int cfd);
 
 int serveWebWrite(int cfd);
 
-static void* worker(struct users* usrs);
+static void* worker();
 
 int
 main(int argc, char* argv[])
@@ -73,7 +73,7 @@ main(int argc, char* argv[])
 
     // create thread pool
     for (int i = 0; i < MAX_THREAD_NUMBER; i++) {
-        s = pthread_create(&t1, NULL, worker, usrs);
+        s = pthread_create(&t1, NULL, worker, NULL);
         if (s != 0) {
             syslog(LOG_ERR, "pthread_create error: %s", strerror(errno));
             exit(EXIT_FAILURE);
@@ -92,7 +92,7 @@ main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    lfd = inetListen(PORT_NUM, BACKLOG, addrlen);
+    lfd = inetListen(PORT_NUM, BACKLOG, &addrlen);
 
     for (;;) {
         cfd = accept(lfd, (struct sockaddr*)&claddr, &addrlen);
@@ -107,7 +107,7 @@ main(int argc, char* argv[])
 }
 
 static void*
-worker(struct users* usrs)
+worker()
 {
     pthread_detach(pthread_self());
 
@@ -297,7 +297,7 @@ parseUrl(char* url, char* filename, char* cgiargs)
 
     if (!strstr(url, "cgi-bin")) {
         strcpy(cgiargs, "");
-        strcpy(filename, ".");
+        strcpy(filename, WORKDIR);
         strcat(filename, url);
         if (url[strlen(url) - 1] == '/') {
             strcat(filename, "index.html");
